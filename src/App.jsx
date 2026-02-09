@@ -34,9 +34,9 @@ const App = () => {
   const [errorMessage, setErrorMessage] = useState('');
 
   const [config, setConfig] = useState({
-    receiveServer: 'air.secure.ne.jp',
-    sendServer: 'air.secure.ne.jp',
-    manualUrl: 'https://support.cpi.ad.jp/manual/bs/mail/mailsoft',
+    receiveServer: 'example.jp',
+    sendServer: 'example.jp',
+    manualUrl: 'https://example.jp',
     selectedPorts: ['pop_ssl', 'imap_ssl', 'smtp_ssl']
   });
 
@@ -437,7 +437,7 @@ const App = () => {
               <Mail className="text-blue-600" size={24} />
               メール設定情報生成ツール
             </h1>
-            <p className="text-sm text-gray-500 font-medium">CPIレンタルサーバー対応 / A4出力用</p>
+            <p className="text-sm text-gray-500 font-medium">A4出力用</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={handlePrintAction} className="flex items-center gap-2 bg-white border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition shadow-sm font-bold">
