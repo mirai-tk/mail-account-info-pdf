@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { toPng } from 'html-to-image';
+import { Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType, AlignmentType, BorderStyle, HeadingLevel } from 'docx';
+import { saveAs } from 'file-saver';
 
 const PORT_OPTIONS = [
   { id: 'pop3', type: '受信用', protocol: 'POP3', port: '110', crypto: '×' },
@@ -113,57 +115,223 @@ const App = () => {
     if (accounts.length > 1) setAccounts(accounts.filter((_, i) => i !== index));
   };
 
-  const exportWord = () => {
-    const content = printRef.current.innerHTML;
-    const exportStyles = `
-      body { font-family: sans-serif; margin: 0; padding: 0; }
-      table { border-collapse: collapse; width: 100%; margin-bottom: 8px; }
-      th, td { border: 1px solid #d1d5db; padding: 6px 8px; font-size: 10pt; text-align: center; }
-      .text-left { text-align: left; }
-      .font-bold { font-weight: bold; }
-      .bg-gray-50 { background-color: #f9fafb; }
-      .bg-slate-600 { background-color: #475569; color: white; }
-      .text-blue-800 { color: #1e40af; }
-      .pdf-header-bar {
-        background-color: #1e3a8a !important;
-        color: #ffffff !important;
-        padding: 4px 10px;
-        font-weight: bold;
-        margin-bottom: 6px;
-        border-radius: 2px;
-        display: block;
-        width: fit-content;
-        margin-left: auto;
-        margin-right: auto;
+  const exportWord = async () => {
+    try {
+      // Create header section
+      const headerParagraphs = [
+        new Paragraph({
+          text: "メール設定情報のご案内",
+          heading: HeadingLevel.HEADING_1,
+          spacing: { after: 200 },
+        }),
+        new Paragraph({
+          text: `発行日: ${new Date().toLocaleDateString('ja-JP')}`,
+          spacing: { after: 200 },
+        }),
+        new Paragraph({
+          text: "いつも大変お世話になっております。メールソフトの設定情報を下記の通りご案内申し上げます。",
+          spacing: { after: 100 },
+        }),
+        new Paragraph({
+          text: "お手数ですが、お手持ちの端末（PC・スマートフォン等）にて設定をお願いいたします。",
+          spacing: { after: 300 },
+        }),
+      ];
+
+      // Server info section
+      const serverInfoHeader = new Paragraph({
+        text: "サーバー基本情報",
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 200, after: 200 },
+      });
+
+      const serverInfoTable = new Table({
+        width: { size: 75, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                children: [new Paragraph({ text: "受信サーバー", bold: true })],
+                shading: { fill: "f9fafb" },
+              }),
+              new TableCell({
+                children: [new Paragraph({ text: config.receiveServer })],
+              }),
+            ],
+          }),
+          new TableRow({
+            children: [
+              new TableCell({
+                children: [new Paragraph({ text: "送信サーバー (SMTP)", bold: true })],
+                shading: { fill: "f9fafb" },
+              }),
+              new TableCell({
+                children: [new Paragraph({ text: config.sendServer })],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      // Port settings table
+      const portTableRows = [
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({
+                children: [new TextRun({ text: "区分", bold: true, color: "FFFFFF" })]
+              })],
+              shading: { fill: "475569" }
+            }),
+            new TableCell({
+              children: [new Paragraph({
+                children: [new TextRun({ text: "プロトコル", bold: true, color: "FFFFFF" })]
+              })],
+              shading: { fill: "475569" }
+            }),
+            new TableCell({
+              children: [new Paragraph({
+                children: [new TextRun({ text: "ポート番号", bold: true, color: "FFFFFF" })]
+              })],
+              shading: { fill: "475569" }
+            }),
+            new TableCell({
+              children: [new Paragraph({
+                children: [new TextRun({ text: "暗号化", bold: true, color: "FFFFFF" })]
+              })],
+              shading: { fill: "475569" }
+            }),
+          ],
+        }),
+      ];
+
+      PORT_OPTIONS.forEach((p, idx) => {
+        const isSelected = config.selectedPorts.includes(p.id);
+        const cells = [];
+
+        if (idx === 0) {
+          cells.push(new TableCell({
+            children: [new Paragraph({ text: "受信用", bold: true })],
+            rowSpan: 4,
+            shading: { fill: "f9fafb" },
+          }));
+        } else if (idx === 4) {
+          cells.push(new TableCell({
+            children: [new Paragraph({ text: "送信用", bold: true })],
+            rowSpan: 2,
+            shading: { fill: "f9fafb" },
+          }));
+        }
+
+        cells.push(
+          new TableCell({
+            children: [new Paragraph({ text: `${isSelected ? '●' : '○'} ${p.protocol}` })],
+          }),
+          new TableCell({
+            children: [new Paragraph({ text: p.port })],
+          }),
+          new TableCell({
+            children: [new Paragraph({ text: p.crypto })],
+          })
+        );
+
+        portTableRows.push(new TableRow({ children: cells }));
+      });
+
+      const portTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: portTableRows,
+      });
+
+      // Account info section
+      const accountInfoHeader = new Paragraph({
+        text: "アカウント別ログイン情報",
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 400, after: 200 },
+      });
+
+      const accountTableRows = [
+        new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph({ text: "メールアドレス / ユーザー名", bold: true })], shading: { fill: "f9fafb" } }),
+            new TableCell({ children: [new Paragraph({ text: "パスワード", bold: true })], shading: { fill: "f9fafb" } }),
+          ],
+        }),
+      ];
+
+      accounts.forEach((acc) => {
+        accountTableRows.push(
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ text: acc.email || '-' })] }),
+              new TableCell({ children: [new Paragraph({ text: acc.password || '-' })] }),
+            ],
+          })
+        );
+      });
+
+      const accountTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: accountTableRows,
+      });
+
+      // Footer notes
+      const footerParagraphs = [
+        new Paragraph({
+          text: "※ パスワードは機密情報です。管理には十分ご注意ください。",
+          spacing: { before: 300, after: 100 },
+        }),
+        new Paragraph({
+          text: "※ セキュリティ保護のため、他者と共有したり公共の場に放置したりしないでください。",
+          spacing: { after: 100 },
+        }),
+        new Paragraph({
+          text: "※ 設定に際して不明な点がございましたら、サポート担当までご連絡ください。",
+        }),
+      ];
+
+      if (config.manualUrl) {
+        footerParagraphs.unshift(
+          new Paragraph({
+            text: `設定マニュアル: ${config.manualUrl}`,
+            spacing: { before: 300, after: 200 },
+          })
+        );
       }
-    `;
 
-    const htmlString = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head>
-        <meta charset="utf-8">
-        <title>Mail Settings Export</title>
-        <style>
-          @page Section1 { size: 595.3pt 841.9pt; margin: 28.35pt 28.35pt 28.35pt 28.35pt; }
-          div.Section1 { page: Section1; }
-          ${exportStyles}
-        </style>
-      </head>
-      <body>
-        <div class="Section1">${content}</div>
-      </body>
-      </html>
-    `;
+      // Create document
+      const doc = new Document({
+        sections: [{
+          properties: {
+            page: {
+              margin: {
+                top: 720,    // 0.5 inch (720 twips = 0.5 inch)
+                right: 720,
+                bottom: 720,
+                left: 720,
+              },
+            },
+          },
+          children: [
+            ...headerParagraphs,
+            serverInfoHeader,
+            serverInfoTable,
+            new Paragraph({ spacing: { after: 200 } }),
+            portTable,
+            accountInfoHeader,
+            accountTable,
+            ...footerParagraphs,
+          ],
+        }],
+      });
 
-    const blob = new Blob(['\ufeff', htmlString], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `mail_settings_${new Date().toISOString().slice(0,10)}.doc`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      // Generate and save
+      const blob = await Packer.toBlob(doc);
+      saveAs(blob, `mail_settings_${new Date().toISOString().slice(0, 10)}.docx`);
+    } catch (error) {
+      console.error("Word export failed:", error);
+      showError("Word出力に失敗しました。");
+    }
   };
 
   const generatePDF = async () => {
@@ -337,11 +505,11 @@ const App = () => {
                 <table className="check-table text-sm">
                   <thead>
                     <tr>
-                      <th className="w-12 border border-gray-300">案内</th>
-                      <th className="border border-gray-300">区分</th>
-                      <th className="text-left px-3 border border-gray-300">プロトコル</th>
-                      <th className="border border-gray-300">ポート</th>
-                      <th className="border border-gray-300">暗号化</th>
+                      <th className="w-12 border border-gray-300 text-white">案内</th>
+                      <th className="border border-gray-300 text-white">区分</th>
+                      <th className="text-left px-3 border border-gray-300 text-white">プロトコル</th>
+                      <th className="border border-gray-300 text-white">ポート</th>
+                      <th className="border border-gray-300 text-white">暗号化</th>
                     </tr>
                   </thead>
                   <tbody>
