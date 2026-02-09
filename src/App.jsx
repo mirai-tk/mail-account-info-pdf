@@ -458,6 +458,7 @@ const App = () => {
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Settings className="text-gray-400" size={20} /> プリセット管理
               </h2>
+              <p className="text-sm text-gray-500 mb-4">メールアカウント情報は保存されません。</p>
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">保存済みプリセット</label>
